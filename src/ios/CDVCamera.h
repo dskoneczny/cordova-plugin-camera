@@ -6,9 +6,9 @@
  to you under the Apache License, Version 2.0 (the
  "License"); you may not use this file except in compliance
  with the License.  You may obtain a copy of the License at
-
+ 
  http://www.apache.org/licenses/LICENSE-2.0
-
+ 
  Unless required by applicable law or agreed to in writing,
  software distributed under the License is distributed on an
  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -21,6 +21,7 @@
 #import <CoreLocation/CoreLocation.h>
 #import <CoreLocation/CLLocationManager.h>
 #import <Cordova/CDVPlugin.h>
+#import "JPSCameraButton.h"
 
 enum CDVDestinationType {
     DestinationTypeDataUrl = 0,
@@ -60,14 +61,21 @@ typedef NSUInteger CDVMediaType;
 @property (assign) BOOL usesGeolocation;
 @property (assign) BOOL cropToSize;
 
+@property NSString* overlayImageURL;
+
 + (instancetype) createFromTakePictureArguments:(CDVInvokedUrlCommand*)command;
 
 @end
 
+@class CameraPickerOverlay;
+
 @interface CDVCameraPicker : UIImagePickerController
+
 
 @property (strong) CDVPictureOptions* pictureOptions;
 
+@property (strong, nonatomic) IBOutlet UIImageView *overlayImageView;
+@property (strong) CameraPickerOverlay * customOverlay;
 @property (copy)   NSString* callbackId;
 @property (copy)   NSString* postUrl;
 @property (strong) UIPopoverController* pickerPopoverController;
@@ -76,14 +84,17 @@ typedef NSUInteger CDVMediaType;
 
 + (instancetype) createFromPictureOptions:(CDVPictureOptions*)options;
 
+- (CGAffineTransform)previewTransform;
+
+
 @end
 
 // ======================================================================= //
 
 @interface CDVCamera : CDVPlugin <UIImagePickerControllerDelegate,
-                       UINavigationControllerDelegate,
-                       UIPopoverControllerDelegate,
-                       CLLocationManagerDelegate>
+UINavigationControllerDelegate,
+UIPopoverControllerDelegate,
+CLLocationManagerDelegate>
 {}
 
 @property (strong) CDVCameraPicker* pickerController;
@@ -112,5 +123,30 @@ typedef NSUInteger CDVMediaType;
 
 - (void)locationManager:(CLLocationManager*)manager didUpdateToLocation:(CLLocation*)newLocation fromLocation:(CLLocation*)oldLocation;
 - (void)locationManager:(CLLocationManager *)manager didFailWithError:(NSError *)error;
+
+@end
+
+
+@interface CameraPickerOverlay : UIView
+
+@property (strong) JPSCameraButton* cameraButton;
+@property (strong) UIButton* cancelButton;
+@property (weak, nonatomic) UIImagePickerController* delegate;
+@property (strong) UIImageView* overlayImageView;
+@property NSString* url;
+
+- (instancetype)initWithDelegate:(UIImagePickerController*)delegate url:(NSString*)url frame:(CGRect)frame;
+
+- (void)addCameraButton;
+
+- (void)addCancelButton;
+
+- (void)addOverlayImageView;
+
+- (void)takePicture;
+
+- (void)sliderChanged:(UISlider*)sender;
+
+- (void)dismiss;
 
 @end

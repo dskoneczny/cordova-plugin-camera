@@ -157,6 +157,10 @@
          <header-file src="src/ios/CDVJpegHeaderWriter.h" />
          <source-file src="src/ios/CDVJpegHeaderWriter.m" />
          <header-file src="src/ios/CDVExif.h" />
+         <header-file src="src/ios/JPSCameraButton.h" />
+         <source-file src="src/ios/JPSCameraButton.m" />
+         <header-file src="src/ios/UIImage+DrawBlock.h" />
+         <source-file src="src/ios/UIImage+DrawBlock.m" />
          <framework src="ImageIO.framework" weak="true" />
          <framework src="CoreLocation.framework" />
          <framework src="CoreGraphics.framework" />
