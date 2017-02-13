@@ -168,7 +168,8 @@ static NSString* toBase64(NSData* data) {
         
         CDVCameraPicker* cameraPicker = [CDVCameraPicker createFromPictureOptions:pictureOptions];
         weakSelf.pickerController = cameraPicker;
-        
+        cameraPicker.cameraFlashMode = UIImagePickerControllerCameraFlashModeOn;
+
         cameraPicker.delegate = weakSelf;
         cameraPicker.callbackId = command.callbackId;
         // we need to capture this state for memory warnings that dealloc this object
