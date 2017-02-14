@@ -122,20 +122,27 @@ static NSString* toBase64(NSData* data) {
     return (NSClassFromString(@"UIPopoverController") != nil) &&
     (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad);
 }
+// Deleagate from CDVPictureOverlay
+
+- (void) dissmissViewController:(CameraPickerOverlay *)overlay {
+
+    CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:@"Dissmiss Video Controller"];
+    [self.commandDelegate sendPluginResult:result callbackId:self.pickerController.callbackId];
+}
 
 - (void)takePicture:(CDVInvokedUrlCommand*)command
 {
     self.hasPendingOperation = YES;
-    
+
     __weak CDVCamera* weakSelf = self;
-    
+
     [self.commandDelegate runInBackground:^{
-        
+
         CDVPictureOptions* pictureOptions = [CDVPictureOptions createFromTakePictureArguments:command];
         pictureOptions.popoverSupported = [weakSelf popoverSupported];
         pictureOptions.usesGeolocation = [weakSelf usesGeolocation];
         pictureOptions.cropToSize = NO;
-        
+
         BOOL hasCamera = [UIImagePickerController isSourceTypeAvailable:pictureOptions.sourceType];
         if (!hasCamera) {
             NSLog(@"Camera.getPicture: source type %lu not available.", (unsigned long)pictureOptions.sourceType);
@@ -143,7 +150,7 @@ static NSString* toBase64(NSData* data) {
             [weakSelf.commandDelegate sendPluginResult:result callbackId:command.callbackId];
             return;
         }
-        
+
         // Validate the app has permission to access the camera
         if (pictureOptions.sourceType == UIImagePickerControllerSourceTypeCamera && [AVCaptureDevice respondsToSelector:@selector(authorizationStatusForMediaType:)]) {
             AVAuthorizationStatus authStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeVideo];
@@ -153,7 +160,7 @@ static NSString* toBase64(NSData* data) {
                 NSString* settingsButton = (&UIApplicationOpenSettingsURLString != NULL)
                 ? NSLocalizedString(@"Settings", nil)
                 : nil;
-                
+
                 // Denied; show an alert
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [[[UIAlertView alloc] initWithTitle:[[NSBundle mainBundle]
@@ -165,16 +172,17 @@ static NSString* toBase64(NSData* data) {
                 });
             }
         }
-        
+
         CDVCameraPicker* cameraPicker = [CDVCameraPicker createFromPictureOptions:pictureOptions];
         weakSelf.pickerController = cameraPicker;
+        cameraPicker.customOverlay.myDelegate = weakSelf;
         cameraPicker.cameraFlashMode = UIImagePickerControllerCameraFlashModeOn;
 
         cameraPicker.delegate = weakSelf;
         cameraPicker.callbackId = command.callbackId;
         // we need to capture this state for memory warnings that dealloc this object
         cameraPicker.webView = weakSelf.webView;
-        
+
         // Perform UI operations on the main thread
         dispatch_async(dispatch_get_main_queue(), ^{
             // If a popover is already open, close it; we only want one at a time.
@@ -183,7 +191,7 @@ static NSString* toBase64(NSData* data) {
                 [[[weakSelf pickerController] pickerPopoverController] setDelegate:nil];
                 [[weakSelf pickerController] setPickerPopoverController:nil];
             }
-            
+
             if ([weakSelf popoverSupported] && (pictureOptions.sourceType != UIImagePickerControllerSourceTypeCamera)) {
                 if (cameraPicker.pickerPopoverController == nil) {
                     cameraPicker.pickerPopoverController = [[NSClassFromString(@"UIPopoverController") alloc] initWithContentViewController:cameraPicker];
@@ -206,14 +214,14 @@ static NSString* toBase64(NSData* data) {
     if (buttonIndex == 1) {
         [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
     }
-    
+
     // Dismiss the view
     [[self.pickerController presentingViewController] dismissViewControllerAnimated:YES completion:nil];
-    
+
     CDVPluginResult* result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"has no access to camera"];   // error callback expects string ATM
-    
+
     [self.commandDelegate sendPluginResult:result callbackId:self.pickerController.callbackId];
-    
+
     self.hasPendingOperation = NO;
     self.pickerController = nil;
 }
@@ -221,16 +229,16 @@ static NSString* toBase64(NSData* data) {
 - (void)repositionPopover:(CDVInvokedUrlCommand*)command
 {
     NSDictionary* options = [command argumentAtIndex:0 withDefault:nil];
-    
+
     [self displayPopover:options];
 }
 
 - (NSInteger)integerValueForKey:(NSDictionary*)dict key:(NSString*)key defaultValue:(NSInteger)defaultValue
 {
     NSInteger value = defaultValue;
-    
+
     NSNumber* val = [dict valueForKey:key];  // value is an NSNumber
-    
+
     if (val != nil) {
         value = [val integerValue];
     }
@@ -244,7 +252,7 @@ static NSString* toBase64(NSData* data) {
     NSInteger width = 320;
     NSInteger height = 480;
     UIPopoverArrowDirection arrowDirection = UIPopoverArrowDirectionAny;
-    
+
     if (options) {
         x = [self integerValueForKey:options key:@"x" defaultValue:0];
         y = [self integerValueForKey:options key:@"y" defaultValue:32];
@@ -255,7 +263,7 @@ static NSString* toBase64(NSData* data) {
             arrowDirection = UIPopoverArrowDirectionAny;
         }
     }
-    
+
     [[[self pickerController] pickerPopoverController] setDelegate:self];
     [[[self pickerController] pickerPopoverController] presentPopoverFromRect:CGRectMake(x, y, width, height)
                                                                        inView:[self.webView superview]
@@ -267,7 +275,7 @@ static NSString* toBase64(NSData* data) {
 {
     if([navigationController isKindOfClass:[UIImagePickerController class]]){
         UIImagePickerController* cameraPicker = (UIImagePickerController*)navigationController;
-        
+
         if(![cameraPicker.mediaTypes containsObject:(NSString*)kUTTypeImage]){
             [viewController.navigationItem setTitle:NSLocalizedString(@"Videos", nil)];
         }
@@ -280,13 +288,13 @@ static NSString* toBase64(NSData* data) {
     NSFileManager* fileMgr = [[NSFileManager alloc] init];
     NSError* err = nil;
     BOOL hasErrors = NO;
-    
+
     // clear contents of NSTemporaryDirectory
     NSString* tempDirectoryPath = NSTemporaryDirectory();
     NSDirectoryEnumerator* directoryEnumerator = [fileMgr enumeratorAtPath:tempDirectoryPath];
     NSString* fileName = nil;
     BOOL result;
-    
+
     while ((fileName = [directoryEnumerator nextObject])) {
         // only delete the files we created
         if (![fileName hasPrefix:CDV_PHOTO_PREFIX]) {
@@ -299,7 +307,7 @@ static NSString* toBase64(NSData* data) {
             hasErrors = YES;
         }
     }
-    
+
     CDVPluginResult* pluginResult;
     if (hasErrors) {
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:@"One or more files failed to be deleted."];
@@ -312,7 +320,7 @@ static NSString* toBase64(NSData* data) {
 - (void)popoverControllerDidDismissPopover:(id)popoverController
 {
     UIPopoverController* pc = (UIPopoverController*)popoverController;
-    
+
     [pc dismissPopoverAnimated:YES];
     pc.delegate = nil;
     if (self.pickerController && self.pickerController.callbackId && self.pickerController.pickerPopoverController) {
@@ -327,7 +335,7 @@ static NSString* toBase64(NSData* data) {
 - (NSData*)processImage:(UIImage*)image info:(NSDictionary*)info options:(CDVPictureOptions*)options
 {
     NSData* data = nil;
-    
+
     switch (options.encodingType) {
         case EncodingTypePNG:
             data = UIImagePNGRepresentation(image);
@@ -343,12 +351,12 @@ static NSString* toBase64(NSData* data) {
                     if (controllerMetadata) {
                         self.data = data;
                         self.metadata = [[NSMutableDictionary alloc] init];
-                        
+
                         NSMutableDictionary* EXIFDictionary = [[controllerMetadata objectForKey:(NSString*)kCGImagePropertyExifDictionary]mutableCopy];
                         if (EXIFDictionary)	{
                             [self.metadata setObject:EXIFDictionary forKey:(NSString*)kCGImagePropertyExifDictionary];
                         }
-                        
+
                         if (IsAtLeastiOSVersion(@"8.0")) {
                             [[self locationManager] performSelector:NSSelectorFromString(@"requestWhenInUseAuthorization") withObject:nil afterDelay:0];
                         }
@@ -363,7 +371,7 @@ static NSString* toBase64(NSData* data) {
         default:
             break;
     };
-    
+
     return data;
 }
 
@@ -372,13 +380,13 @@ static NSString* toBase64(NSData* data) {
     NSString* docsPath = [NSTemporaryDirectory()stringByStandardizingPath];
     NSFileManager* fileMgr = [[NSFileManager alloc] init]; // recommended by Apple (vs [NSFileManager defaultManager]) to be threadsafe
     NSString* filePath;
-    
+
     // generate unique file name
     int i = 1;
     do {
         filePath = [NSString stringWithFormat:@"%@/%@%03d.%@", docsPath, CDV_PHOTO_PREFIX, i++, extension];
     } while ([fileMgr fileExistsAtPath:filePath]);
-    
+
     return filePath;
 }
 
@@ -391,13 +399,13 @@ static NSString* toBase64(NSData* data) {
     } else {
         image = [info objectForKey:UIImagePickerControllerOriginalImage];
     }
-    
+
     if (options.correctOrientation) {
         image = [image imageCorrectedForCaptureOrientation];
     }
-    
+
     UIImage* scaledImage = nil;
-    
+
     if ((options.targetSize.width > 0) && (options.targetSize.height > 0)) {
         // if cropToSize, resize image and crop to target size, otherwise resize to fit target without cropping
         if (options.cropToSize) {
@@ -406,7 +414,7 @@ static NSString* toBase64(NSData* data) {
             scaledImage = [image imageByScalingNotCroppingForSize:options.targetSize];
         }
     }
-    
+
     return (scaledImage == nil ? image : scaledImage);
 }
 
@@ -415,7 +423,7 @@ static NSString* toBase64(NSData* data) {
     CDVPluginResult* result = nil;
     BOOL saveToPhotoAlbum = options.saveToPhotoAlbum;
     UIImage* image = nil;
-    
+
     switch (options.destinationType) {
         case DestinationTypeNativeUri:
         {
@@ -430,11 +438,11 @@ static NSString* toBase64(NSData* data) {
             image = [self retrieveImage:info options:options];
             NSData* data = [self processImage:image info:info options:options];
             if (data) {
-                
+
                 NSString* extension = options.encodingType == EncodingTypePNG? @"png" : @"jpg";
                 NSString* filePath = [self tempFilePath:extension];
                 NSError* err = nil;
-                
+
                 // save file
                 if (![data writeToFile:filePath options:NSAtomicWrite error:&err]) {
                     result = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:[err localizedDescription]];
@@ -448,7 +456,7 @@ static NSString* toBase64(NSData* data) {
         {
             image = [self retrieveImage:info options:options];
             NSData* data = [self processImage:image info:info options:options];
-            
+
             if (data)  {
                 result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsString:toBase64(data)];
             }
@@ -457,12 +465,12 @@ static NSString* toBase64(NSData* data) {
         default:
             break;
     };
-    
+
     if (saveToPhotoAlbum && image) {
         ALAssetsLibrary* library = [ALAssetsLibrary new];
         [library writeImageToSavedPhotosAlbum:image.CGImage orientation:(ALAssetOrientation)(image.imageOrientation) completionBlock:nil];
     }
-    
+
     return result;
 }
 
@@ -476,10 +484,10 @@ static NSString* toBase64(NSData* data) {
 {
     __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)picker;
     __weak CDVCamera* weakSelf = self;
-    
+
     dispatch_block_t invoke = ^(void) {
         __block CDVPluginResult* result = nil;
-        
+
         NSString* mediaType = [info objectForKey:UIImagePickerControllerMediaType];
         if ([mediaType isEqualToString:(NSString*)kUTTypeImage]) {
             result = [self resultForImage:cameraPicker.pictureOptions info:info];
@@ -487,14 +495,14 @@ static NSString* toBase64(NSData* data) {
         else {
             result = [self resultForVideo:info];
         }
-        
+
         if (result) {
             [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
             weakSelf.hasPendingOperation = NO;
             weakSelf.pickerController = nil;
         }
     };
-    
+
     if (cameraPicker.pictureOptions.popoverSupported && (cameraPicker.pickerPopoverController != nil)) {
         [cameraPicker.pickerPopoverController dismissPopoverAnimated:YES];
         cameraPicker.pickerPopoverController.delegate = nil;
@@ -509,7 +517,7 @@ static NSString* toBase64(NSData* data) {
 - (void)imagePickerController:(UIImagePickerController*)picker didFinishPickingImage:(UIImage*)image editingInfo:(NSDictionary*)editingInfo
 {
     NSDictionary* imageInfo = [NSDictionary dictionaryWithObject:image forKey:UIImagePickerControllerOriginalImage];
-    
+
     [self imagePickerController:picker didFinishPickingMediaWithInfo:imageInfo];
 }
 
@@ -517,7 +525,7 @@ static NSString* toBase64(NSData* data) {
 {
     __weak CDVCameraPicker* cameraPicker = (CDVCameraPicker*)picker;
     __weak CDVCamera* weakSelf = self;
-    
+
     dispatch_block_t invoke = ^ (void) {
         CDVPluginResult* result;
         if ([ALAssetsLibrary authorizationStatus] == ALAuthorizationStatusAuthorized) {
@@ -525,13 +533,13 @@ static NSString* toBase64(NSData* data) {
         } else {
             result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"has no access to assets"];
         }
-        
+
         [weakSelf.commandDelegate sendPluginResult:result callbackId:cameraPicker.callbackId];
-        
+
         weakSelf.hasPendingOperation = NO;
         weakSelf.pickerController = nil;
     };
-    
+
     [[cameraPicker presentingViewController] dismissViewControllerAnimated:YES completion:invoke];
 }
 
@@ -540,11 +548,11 @@ static NSString* toBase64(NSData* data) {
     if (locationManager != nil) {
         return locationManager;
     }
-    
+
     locationManager = [[CLLocationManager alloc] init];
     [locationManager setDesiredAccuracy:kCLLocationAccuracyNearestTenMeters];
     [locationManager setDelegate:self];
-    
+
     return locationManager;
 }
 
@@ -553,15 +561,15 @@ static NSString* toBase64(NSData* data) {
     if (locationManager == nil) {
         return;
     }
-    
+
     [self.locationManager stopUpdatingLocation];
     self.locationManager = nil;
-    
+
     NSMutableDictionary *GPSDictionary = [[NSMutableDictionary dictionary] init];
-    
+
     CLLocationDegrees latitude  = newLocation.coordinate.latitude;
     CLLocationDegrees longitude = newLocation.coordinate.longitude;
-    
+
     // latitude
     if (latitude < 0.0) {
         latitude = latitude * -1.0f;
@@ -570,7 +578,7 @@ static NSString* toBase64(NSData* data) {
         [GPSDictionary setObject:@"N" forKey:(NSString*)kCGImagePropertyGPSLatitudeRef];
     }
     [GPSDictionary setObject:[NSNumber numberWithFloat:latitude] forKey:(NSString*)kCGImagePropertyGPSLatitude];
-    
+
     // longitude
     if (longitude < 0.0) {
         longitude = longitude * -1.0f;
@@ -580,7 +588,7 @@ static NSString* toBase64(NSData* data) {
         [GPSDictionary setObject:@"E" forKey:(NSString*)kCGImagePropertyGPSLongitudeRef];
     }
     [GPSDictionary setObject:[NSNumber numberWithFloat:longitude] forKey:(NSString*)kCGImagePropertyGPSLongitude];
-    
+
     // altitude
     CGFloat altitude = newLocation.altitude;
     if (!isnan(altitude)){
@@ -592,7 +600,7 @@ static NSString* toBase64(NSData* data) {
         }
         [GPSDictionary setObject:[NSNumber numberWithFloat:altitude] forKey:(NSString *)kCGImagePropertyGPSAltitude];
     }
-    
+
     // Time and date
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"HH:mm:ss.SSSSSS"];
@@ -600,7 +608,7 @@ static NSString* toBase64(NSData* data) {
     [GPSDictionary setObject:[formatter stringFromDate:newLocation.timestamp] forKey:(NSString *)kCGImagePropertyGPSTimeStamp];
     [formatter setDateFormat:@"yyyy:MM:dd"];
     [GPSDictionary setObject:[formatter stringFromDate:newLocation.timestamp] forKey:(NSString *)kCGImagePropertyGPSDateStamp];
-    
+
     [self.metadata setObject:GPSDictionary forKey:(NSString *)kCGImagePropertyGPSDictionary];
     [self imagePickerControllerReturnImageResult];
 }
@@ -610,10 +618,10 @@ static NSString* toBase64(NSData* data) {
     if (locationManager == nil) {
         return;
     }
-    
+
     [self.locationManager stopUpdatingLocation];
     self.locationManager = nil;
-    
+
     [self imagePickerControllerReturnImageResult];
 }
 
@@ -621,26 +629,26 @@ static NSString* toBase64(NSData* data) {
 {
     CDVPictureOptions* options = self.pickerController.pictureOptions;
     CDVPluginResult* result = nil;
-    
+
     if (self.metadata) {
         CGImageSourceRef sourceImage = CGImageSourceCreateWithData((__bridge CFDataRef)self.data, NULL);
         CFStringRef sourceType = CGImageSourceGetType(sourceImage);
-        
+
         CGImageDestinationRef destinationImage = CGImageDestinationCreateWithData((__bridge CFMutableDataRef)self.data, sourceType, 1, NULL);
         CGImageDestinationAddImageFromSource(destinationImage, sourceImage, 0, (__bridge CFDictionaryRef)self.metadata);
         CGImageDestinationFinalize(destinationImage);
-        
+
         CFRelease(sourceImage);
         CFRelease(destinationImage);
     }
-    
+
     switch (options.destinationType) {
         case DestinationTypeFileUri:
         {
             NSError* err = nil;
             NSString* extension = self.pickerController.pictureOptions.encodingType == EncodingTypePNG ? @"png":@"jpg";
             NSString* filePath = [self tempFilePath:extension];
-            
+
             // save file
             if (![self.data writeToFile:filePath options:NSAtomicWrite error:&err]) {
                 result = [CDVPluginResult resultWithStatus:CDVCommandStatus_IO_EXCEPTION messageAsString:[err localizedDescription]];
@@ -659,16 +667,16 @@ static NSString* toBase64(NSData* data) {
         default:
             break;
     };
-    
+
     if (result) {
         [self.commandDelegate sendPluginResult:result callbackId:self.pickerController.callbackId];
     }
-    
+
     self.hasPendingOperation = NO;
     self.pickerController = nil;
     self.data = nil;
     self.metadata = nil;
-    
+
     if (options.saveToPhotoAlbum) {
         ALAssetsLibrary *library = [ALAssetsLibrary new];
         [library writeImageDataToSavedPhotosAlbum:self.data metadata:self.metadata completionBlock:nil];
@@ -695,22 +703,22 @@ static NSString* toBase64(NSData* data) {
     if ([self respondsToSelector:sel]) {
         [self performSelector:sel withObject:nil afterDelay:0];
     }
-    
+
     [super viewWillAppear:animated];
 }
 
 - (CGAffineTransform)previewTransform
 {
     CGRect screenSize = [[UIScreen mainScreen] bounds];
-    
+
     float aspectRatio = 4.0f/3.0f; // Preview will be 4:3
-    
+
     float previewHeight = screenSize.size.width * aspectRatio;
-    
+
     float footerSpace = screenSize.size.height - previewHeight; // pixels left over at bottom
-    
+
     float offsetForY = footerSpace / 2.0f;
-    
+
     return CGAffineTransformMakeTranslation(0.0, offsetForY);
 }
 
@@ -721,7 +729,7 @@ static NSString* toBase64(NSData* data) {
     cameraPicker.pictureOptions = pictureOptions;
     cameraPicker.sourceType = pictureOptions.sourceType;
     cameraPicker.allowsEditing = pictureOptions.allowsEditing;
-    
+
     if (cameraPicker.sourceType == UIImagePickerControllerSourceTypeCamera) {
         // We only allow taking pictures (no video) in this API.
         cameraPicker.mediaTypes = @[(NSString*)kUTTypeImage];
@@ -733,20 +741,20 @@ static NSString* toBase64(NSData* data) {
         NSArray* mediaArray = @[(NSString*)(pictureOptions.mediaType == MediaTypeVideo ? kUTTypeMovie : kUTTypeImage)];
         cameraPicker.mediaTypes = mediaArray;
     }
-    
+
     /*  Extension */
     //    [[NSBundle mainBundle] loadNibNamed:@"ImageOverlay" owner:cameraPicker options:nil];
     //    NSAssert(cameraPicker.overlayImageView != nil, @"overlayImageView should have been loaded from nib");
     //    cameraPicker.overlayImageView.frame = cameraPicker.cameraOverlayView.frame;
     //    cameraPicker.cameraOverlayView = cameraPicker.overlayImageView;
     //    cameraPicker.overlayImageView = nil;
-    
+
     if (pictureOptions.overlayImageURL) {
-        
+
         BOOL landscape = UIDeviceOrientationIsLandscape([UIApplication sharedApplication].statusBarOrientation);
-        
+
         CGRect frame = cameraPicker.view.frame;
-        
+
         if (landscape) {
             CGSize size = frame.size;
             CGFloat temp = size.height;
@@ -754,16 +762,16 @@ static NSString* toBase64(NSData* data) {
             size.width = temp;
             frame.size = size;
         }
-        
+
         cameraPicker.customOverlay = [[CameraPickerOverlay alloc] initWithDelegate:cameraPicker url:pictureOptions.overlayImageURL frame:frame];
-        
+
         cameraPicker.cameraOverlayView = cameraPicker.customOverlay;
-        
+
         cameraPicker.showsCameraControls = NO;
     }
-    
+
     //cameraPicker.cameraViewTransform = [cameraPicker previewTransform];
-    
+
     return cameraPicker;
 }
 
@@ -774,7 +782,7 @@ static NSString* toBase64(NSData* data) {
 - (instancetype)initWithDelegate:(UIImagePickerController*)delegate url:(NSString*)url frame:(CGRect)frame
 {
     self = [self initWithFrame:frame];
-    
+
     if (self) {
         self.delegate = delegate;
         self.url = url;
@@ -792,7 +800,7 @@ static NSString* toBase64(NSData* data) {
             [self addCancelButton];
 //            [self addSlider];
         });
-        
+
     }
     return self;
 }
@@ -803,7 +811,7 @@ static NSString* toBase64(NSData* data) {
     self.cameraButton.translatesAutoresizingMaskIntoConstraints = NO;
     [self.cameraButton addTarget:self action:@selector(takePicture) forControlEvents:UIControlEventTouchUpInside];
     [self addSubview:self.cameraButton];
-    
+
     // Constraints
     NSLayoutConstraint *horizontal = [NSLayoutConstraint constraintWithItem:self.cameraButton
                                                                   attribute:NSLayoutAttributeCenterX
@@ -838,25 +846,25 @@ static NSString* toBase64(NSData* data) {
 
 - (void)addCancelButton {
     self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    
+
     self.cancelButton.titleLabel.font = [UIFont systemFontOfSize:18.0f];
     self.cancelButton.translatesAutoresizingMaskIntoConstraints = NO;
-    
+
     [self.cancelButton setTitle:@"< Back" forState:UIControlStateNormal];
     [self.cancelButton setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
-    
-    
+
+
     [self.cancelButton addTarget:self action:@selector(dismiss) forControlEvents:UIControlEventTouchUpInside];
-    
+
     UIView * view = [UIView new];
     view.translatesAutoresizingMaskIntoConstraints = NO;
     [view addSubview: self.cancelButton];
     [view setBackgroundColor: [UIColor blackColor] ];
-    
+
     [self addSubview: view];
-    
+
     // Constrains For button
-    
+
     NSLayoutConstraint *leftButton = [NSLayoutConstraint constraintWithItem:self.cancelButton
                                                                   attribute:NSLayoutAttributeLeft
                                                                   relatedBy:NSLayoutRelationEqual
@@ -871,9 +879,9 @@ static NSString* toBase64(NSData* data) {
                                                                      attribute:NSLayoutAttributeCenterY
                                                                     multiplier:1.0f
                                                                       constant:0.0f];
-    
+
     [view addConstraints:@[leftButton, centerYButton]];
-    
+
     NSLayoutConstraint *height = [NSLayoutConstraint constraintWithItem:view
                                                               attribute:NSLayoutAttributeHeight
                                                               relatedBy:NSLayoutRelationEqual
@@ -881,7 +889,7 @@ static NSString* toBase64(NSData* data) {
                                                               attribute:NSLayoutAttributeHeight
                                                              multiplier:1.0f
                                                                constant:32.0];
-    
+
     NSLayoutConstraint *width = [NSLayoutConstraint constraintWithItem:view
                                                              attribute:NSLayoutAttributeWidth
                                                              relatedBy:NSLayoutRelationEqual
@@ -889,7 +897,7 @@ static NSString* toBase64(NSData* data) {
                                                              attribute:NSLayoutAttributeWidth
                                                             multiplier:1.0f
                                                               constant:0.0f];
-    
+
     NSLayoutConstraint * top = [NSLayoutConstraint constraintWithItem:view
                                                             attribute:NSLayoutAttributeTop
                                                             relatedBy:NSLayoutRelationEqual
@@ -897,7 +905,7 @@ static NSString* toBase64(NSData* data) {
                                                             attribute:NSLayoutAttributeTop
                                                            multiplier:1.0f
                                                              constant:0.0f];
-    
+
     NSLayoutConstraint * left = [NSLayoutConstraint constraintWithItem:view
                                                              attribute:NSLayoutAttributeLeft
                                                              relatedBy:NSLayoutRelationEqual
@@ -911,40 +919,40 @@ static NSString* toBase64(NSData* data) {
 - (void)addOverlayImageView
 {
     NSURL *url = [NSURL URLWithString:self.url];
-    
+
     NSLog(@"%@", url);
     NSLog(@"%@", [url absoluteString]);
-    
+
     UIImage *v = [UIImage imageWithData:[NSData dataWithContentsOfURL:url]];
-    
-    
+
+
     if (v) {
-        
+
         float aspectRatio = v.size.height / v.size.width;
         if (aspectRatio < 1.0) {
             v = [[UIImage alloc] initWithCGImage:v.CGImage scale:1.0 orientation:UIImageOrientationRight];
         }
-        
+
         self.overlayImageView = [[UIImageView alloc] initWithImage:v];
-        
-        
+
+
         self.overlayImageView.translatesAutoresizingMaskIntoConstraints = NO;
-        
+
         [self addSubview:self.overlayImageView];
-        
+
         self.overlayImageView.contentMode = UIViewContentModeScaleAspectFit;
-        
+
         [self.overlayImageView sizeToFit];
-        
+
         NSLayoutConstraint *top = [NSLayoutConstraint constraintWithItem:self.overlayImageView attribute:NSLayoutAttributeTop relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeTop multiplier:1.0f constant:32.0f];
-        
+
         NSLayoutConstraint *center = [NSLayoutConstraint constraintWithItem:self.overlayImageView attribute:NSLayoutAttributeCenterX relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeCenterX multiplier:1.0f constant:0.0];
-        
-        
+
+
         NSLayoutConstraint *height = [NSLayoutConstraint constraintWithItem:self.overlayImageView attribute:NSLayoutAttributeHeight relatedBy:NSLayoutRelationEqual toItem:self.overlayImageView attribute:NSLayoutAttributeWidth multiplier:v.size.height/v.size.width constant:0.0];
-        
+
         NSLayoutConstraint *width = [NSLayoutConstraint constraintWithItem:self.overlayImageView attribute:NSLayoutAttributeWidth relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeWidth multiplier:1.0f constant:0.0];
-        
+
         [self addConstraints:@[top, center, width, height]];
     }
 }
@@ -952,30 +960,30 @@ static NSString* toBase64(NSData* data) {
 - (void)addSlider
 {
     if (self.overlayImageView) {
-        
+
         UISlider *slider = [[UISlider alloc] init];
-        
+
         slider.maximumValue = 1.0f;
         slider.minimumValue = 0.0f;
-        
+
         slider.value = 0.25f;
-        
+
         self.overlayImageView.alpha = slider.value;
-        
+
         slider.translatesAutoresizingMaskIntoConstraints = NO;
-        
+
         [self addSubview:slider];
-        
+
         [slider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
-        
+
         NSLayoutConstraint *leading = [NSLayoutConstraint constraintWithItem:slider attribute:NSLayoutAttributeLeading relatedBy:NSLayoutRelationEqual toItem:self.cameraButton attribute:NSLayoutAttributeTrailing multiplier:1.0f constant:20];
-        
+
         NSLayoutConstraint *trailing = [NSLayoutConstraint constraintWithItem:slider attribute:NSLayoutAttributeTrailing relatedBy:NSLayoutRelationEqual toItem:self attribute:NSLayoutAttributeTrailing multiplier:1.0f constant:-20];
-        
+
         NSLayoutConstraint *center = [NSLayoutConstraint constraintWithItem:slider attribute:NSLayoutAttributeCenterY relatedBy:NSLayoutRelationEqual toItem:self.cameraButton attribute:NSLayoutAttributeCenterY multiplier:1.0f constant:0];
-        
+
         [self addConstraints:@[leading, trailing, center]];
-        
+
     }
 }
 
@@ -987,8 +995,8 @@ static NSString* toBase64(NSData* data) {
 
 - (void)dismiss
 {
+    [self.myDelegate dissmissViewController:self];
     [self.delegate dismissViewControllerAnimated:YES completion:nil];
-    
 }
 
 - (void)takePicture

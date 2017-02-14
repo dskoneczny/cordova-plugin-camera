@@ -71,7 +71,6 @@ typedef NSUInteger CDVMediaType;
 
 @interface CDVCameraPicker : UIImagePickerController
 
-
 @property (strong) CDVPictureOptions* pictureOptions;
 
 @property (strong, nonatomic) IBOutlet UIImageView *overlayImageView;
@@ -86,6 +85,11 @@ typedef NSUInteger CDVMediaType;
 
 - (CGAffineTransform)previewTransform;
 
+@end
+
+@protocol CDVCameraPickerOverlayDelegate
+
+- (void) dissmissViewController:(CameraPickerOverlay*) overlay;
 
 @end
 
@@ -94,13 +98,16 @@ typedef NSUInteger CDVMediaType;
 @interface CDVCamera : CDVPlugin <UIImagePickerControllerDelegate,
 UINavigationControllerDelegate,
 UIPopoverControllerDelegate,
-CLLocationManagerDelegate>
+CLLocationManagerDelegate,
+CDVCameraPickerOverlayDelegate
+>
 {}
 
 @property (strong) CDVCameraPicker* pickerController;
 @property (strong) NSMutableDictionary *metadata;
 @property (strong, nonatomic) CLLocationManager *locationManager;
 @property (strong) NSData* data;
+
 
 /*
  * getPicture
@@ -134,6 +141,7 @@ CLLocationManagerDelegate>
 @property (weak, nonatomic) UIImagePickerController* delegate;
 @property (strong) UIImageView* overlayImageView;
 @property NSString* url;
+@property (weak, nonatomic) id<CDVCameraPickerOverlayDelegate> myDelegate;
 
 - (instancetype)initWithDelegate:(UIImagePickerController*)delegate url:(NSString*)url frame:(CGRect)frame;
 
