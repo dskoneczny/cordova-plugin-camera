@@ -14,8 +14,9 @@
 + (instancetype)button {
     JPSCameraButton *button = [JPSCameraButton buttonWithType:UIButtonTypeSystem];
     if (self) {
-        button.tintColor = [UIColor whiteColor];
-        [button setBackgroundImage:[button innerCircle] forState:UIControlStateNormal];
+        button.tintColor = [UIColor colorWithRed:0.05 green:0.70 blue:0.94 alpha:1.0];
+        [button setBackgroundImage:[UIImage imageNamed:@"camera_image"] forState:UIControlStateNormal];
+
         [button addSubview:[[UIImageView alloc] initWithImage:[button outerRingImage]]];
     }
     return button;
