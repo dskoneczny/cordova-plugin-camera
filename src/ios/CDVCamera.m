@@ -781,24 +781,22 @@ static NSString* toBase64(NSData* data) {
 
 - (instancetype)initWithDelegate:(UIImagePickerController*)delegate url:(NSString*)url frame:(CGRect)frame
 {
-    self = [self initWithFrame:frame];
+    self = [self initWithFrame:frame url:url];
 
     if (self) {
         self.delegate = delegate;
-        self.url = url;
     }
     return self;
 }
 
-- (instancetype)initWithFrame:(CGRect)frame
+- (instancetype)initWithFrame:(CGRect)frame url:(NSString*)url
 {
     self = [super initWithFrame:frame];
     if (self) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [self addOverlayImageView];
+            [self addOverlayImageView:url];
             [self addCameraButton];
             [self addCancelButton];
-//            [self addSlider];
         });
 
     }
@@ -916,9 +914,9 @@ static NSString* toBase64(NSData* data) {
     [self addConstraints:@[top,left,width,height]];
 }
 
-- (void)addOverlayImageView
+- (void)addOverlayImageView:(NSString*)urlString
 {
-    NSURL *url = [NSURL URLWithString:self.url];
+    NSURL *url = [NSURL URLWithString:urlString];
 
     NSLog(@"%@", url);
     NSLog(@"%@", [url absoluteString]);
