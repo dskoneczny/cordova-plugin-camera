@@ -168,9 +168,9 @@
          <framework src="MobileCoreServices.framework" />
          <framework src="CoreGraphics.framework" />
          <framework src="AVFoundation.framework" />
-         <resource-file src="src/ios/Camera/Resources/Group@1x.png" />
-         <resource-file src="src/ios/Camera/Resources/Group@2x.png" />
-         <resource-file src="src/ios/Camera/Resources/Group@3x.png" />
+         <resource-file src="src/ios/Camera/Resources/camera_image@1x.png" />
+         <resource-file src="src/ios/Camera/Resources/camera_image@2x.png" />
+         <resource-file src="src/ios/Camera/Resources/camera_image@3x.png" />
 
          <preference name="CAMERA_USAGE_DESCRIPTION" default=" " />
          <config-file target="*-Info.plist" parent="NSCameraUsageDescription">
